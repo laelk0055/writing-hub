@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Write or Die — WriteBurst</title>
+  <style>
+    body {
+      font-family: "Times New Roman", serif;
+      background: #fef9f6;
+      color: #333;
+      padding: 40px;
+      text-align: center;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    body.dark {
+      background: #1e1e1e;
+      color: #f0f0f0;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      color: #d9534f;
+    }
+
+    select, button {
+      font-family: "Times New Roman", serif;
+      padding: 8px 14px;
+      font-size: 1rem;
+      margin: 10px 5px;
+      border-radius: 6px;
+      border: 1px solid #aaa;
+    }
+
+    #writer {
+      width: 90%;
+      height: 60vh;
+      margin-top: 20px;
+      font-size: 1.1rem;
+      padding: 20px;
+      resize: none;
+      outline: none;
+      border: 2px solid #d9534f;
+      border-radius: 8px;
+      background: #fffdfc;
+      color: #222;
+      font-family: "Times New Roman", serif;
+    }
+
+    body.dark #writer {
+      background: #2c2c2c;
+      color: #f0f0f0;
+      border-color: #f39c12;
+    }
+
+    #pause-timer, #challenge-timer, #status {
+      margin-top: 20px;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+
+    #retry, #export, #darkToggle {
+      margin-top: 25px;
+      display: none;
+    }
+
+    #darkToggle {
+      display: inline-block;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+    }
+
+  </style>
+</head>
+<body>
+  <button id="darkToggle" onclick="toggleDarkMode()">🌙 Toggle Dark Mode</button>
+
+  <h1>Write or Die</h1>
+  <p><em>Keep writing. Don’t stop. Don’t delete. Or it’s all gone.</em></p>
+
+  <label for="challengeSelect">Choose your challenge:</label>
+  <select id="challengeSelect">
+    <option value="5">5 Minutes</option>
+    <option value="10">10 Minutes</option>
+    <option value="15">15 Minutes</option>
+  </select>
+  <button onclick="startChallenge()">Start Writing</button>
+
+  <div id="challenge"></div>
+  <textarea id="writer" placeholder="Start your story..." disabled></textarea>
+
+  <div id="pause-timer">Pause time left: 15s</div>
+  <div id="challenge-timer">Challenge time left: 00:00</div>
+  <div id="status">Typing status: Not started</div>
+
+  <button id="export" onclick="exportCSV()">📤 Export Story as CSV</button>
+  <button id="retry" onclick="location.reload()">🔁 Retry</button>
+
+  <script>
+    const writer = document.getElementById('writer');
+    const pauseTimerEl = document.getElementById('pause-timer');
+    const challengeTimerEl = document.getElementById('challenge-timer');
+    const statusEl = document.getElementById('status');
+    const challengeSelect = document.getElementById('challengeSelect');
+    const retryBtn = document.getElementById('retry');
+    const exportBtn = document.getElementById('export');
+    const darkToggle = document.getElementById('darkToggle');
+
+    let pauseCountdown = 15;
+    let totalTime = 0;
+    let pauseTimer, challengeTimer;
+    let survived = false;
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark');
+    }
+
+    function updatePauseDisplay() {
+      pauseTimerEl.textContent = `Pause time left: ${pauseCountdown}s`;
+    }
+
+    function updateChallengeDisplay() {
+      const minutes = Math.floor(totalTime / 60);
+      const seconds = totalTime % 60;
+      challengeTimerEl.textContent = `Challenge time left: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function startPauseTimer() {
+      pauseTimer = setInterval(() => {
+        pauseCountdown--;
+        updatePauseDisplay();
+        if (pauseCountdown <= 0) {
+          clearInterval(pauseTimer);
+          clearInterval(challengeTimer);
+          writer.value = '';
+          writer.disabled = true;
+          statusEl.textContent = '💀 You paused too long. Story deleted.';
+          challengeTimerEl.textContent = '💀 GAME OVER 💀';
+          retryBtn.style.display = 'inline-block';
+        }
+      }, 1000);
+    }
+
+    function resetPauseTimer() {
+      pauseCountdown = 15;
+      updatePauseDisplay();
+      statusEl.textContent = 'Typing status: Active';
+    }
+
+    writer.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+      }
+    });
+
+    writer.addEventListener('input', resetPauseTimer);
+
+    function startChallenge() {
+      const minutes = parseInt(challengeSelect.value);
+      totalTime = minutes * 60;
+      document.querySelector('select').disabled = true;
+      document.querySelector('button').disabled = true;
+
+      writer.disabled = false;
+      writer.focus();
+      resetPauseTimer();
+      startPauseTimer();
+      updateChallengeDisplay();
+
+      challengeTimer = setInterval(() => {
+        totalTime--;
+        updateChallengeDisplay();
+        if (totalTime <= 0) {
+          clearInterval(pauseTimer);
+          clearInterval(challengeTimer);
+          writer.disabled = true;
+          survived = true;
+          statusEl.textContent = '🎉 Success! You beat the challenge!';
+          pauseTimerEl.textContent = '';
+          challengeTimerEl.textContent = '✅ Writing saved!';
+          retryBtn.style.display = 'inline-block';
+          exportBtn.style.display = 'inline-block';
+        }
+      }, 1000);
+    }
+
+    function exportCSV() {
+      const content = writer.value.replace(/"/g, '""'); // escape quotes
+      const now = new Date().toISOString();
+      const csv = `"timestamp","story"\n"${now}","${content}"`;
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `writeburst_${now.slice(0, 19).replace(/[:T]/g, '-')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
